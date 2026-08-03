@@ -48,6 +48,18 @@ def month_range(ref):
     return dt.date(y, m, 1), dt.date(y, m, calendar.monthrange(y, m)[1])
 
 
+BRT = dt.timezone(dt.timedelta(hours=-3))
+# Feriados nacionais de data fixa que podem cair no início do mês (mês, dia)
+FERIADOS = {(1, 1), (4, 21), (5, 1), (9, 7), (10, 12), (11, 2), (11, 15), (11, 20), (12, 25)}
+
+
+def primeiro_dia_util(y, m):
+    d = dt.date(y, m, 1)
+    while d.weekday() >= 5 or (d.month, d.day) in FERIADOS:
+        d += dt.timedelta(days=1)
+    return d
+
+
 br = lambda d: d.strftime("%d/%m/%Y")
 aux_from = lambda d: f"{d.isoformat()}T03:00:00.000Z"
 aux_until = lambda d: f"{(d + dt.timedelta(days=1)).isoformat()}T02:59:59.999Z"
@@ -251,7 +263,14 @@ def main():
     if not TOKEN or "COLE_SEU_TOKEN" in TOKEN:
         print("ERRO: SMBOT_TOKEN não configurado.", file=sys.stderr)
         sys.exit(2)
-    a, b = month_range(os.environ.get("REF_MONTH"))
+    ref_env = os.environ.get("REF_MONTH")
+    hoje = dt.datetime.now(BRT).date()
+    if not ref_env:
+        pdu = primeiro_dia_util(hoje.year, hoje.month)
+        if hoje != pdu:
+            print(f"Hoje ({hoje}) não é o primeiro dia útil do mês (que é {pdu}). Nada a fazer.")
+            sys.exit(0)
+    a, b = month_range(ref_env)
     d = collect(a, b)
     out = f"indicador_crm_{a.year}-{a.month:02d}.html"
     with open(out, "w", encoding="utf-8") as fh:
