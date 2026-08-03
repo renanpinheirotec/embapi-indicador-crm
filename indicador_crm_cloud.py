@@ -1,0 +1,268 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Versão CLOUD do Indicador CRM (SMBOT) da Embapi — roda numa rotina do Claude (dia 01).
+Puxa o SMBOT com o token (env SMBOT_TOKEN), gera o painel em HTML (arquivo).
+Sem Slack. Mês de referência = mês anterior (ou env REF_MONTH='AAAA-MM').
+
+Uso:  SMBOT_TOKEN="<jwt>" python3 indicador_crm_cloud.py
+Saída: indicador_crm_<AAAA-MM>.html  (no diretório atual)
+Dep:   pip install requests
+"""
+import os, sys, calendar, datetime as dt
+from collections import defaultdict
+import requests
+
+BASE = "https://smsolucoesdigital.com.br"
+BOARD_ID = os.environ.get("BOARD_ID", "8273")
+TOKEN = os.environ.get("SMBOT_TOKEN", "")
+YELLOW = "#fff833"
+LIST_EFETIVADO = 44302
+LISTS = [44298, 44299, 44300, 44301, 44302, 44306]
+LIST_NAMES = {44298: "LEAD", 44299: "Em Contato", 44300: "Lead Qualificado",
+              44301: "Orçamento Enviado", 44302: "Pedido Efetivado", 44306: "Lead Desqualificado"}
+H = {"Accept": "application/json", "Authorization": TOKEN}
+MESES = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+         "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+
+
+class SmbotError(Exception):
+    pass
+
+
+def _get(path, params=None):
+    r = requests.get(f"{BASE}{path}", headers=H, params=params or {}, timeout=60)
+    if r.status_code == 401:
+        raise SmbotError("401 — token do SMBOT expirou/revogado. Atualize SMBOT_TOKEN na config da rotina.")
+    if r.status_code != 200:
+        raise SmbotError(f"HTTP {r.status_code} em {path}")
+    return r.json()
+
+
+def month_range(ref):
+    if ref:
+        y, m = map(int, ref.split("-"))
+    else:
+        t = dt.date.today().replace(day=1) - dt.timedelta(days=1)
+        y, m = t.year, t.month
+    return dt.date(y, m, 1), dt.date(y, m, calendar.monthrange(y, m)[1])
+
+
+br = lambda d: d.strftime("%d/%m/%Y")
+aux_from = lambda d: f"{d.isoformat()}T03:00:00.000Z"
+aux_until = lambda d: f"{(d + dt.timedelta(days=1)).isoformat()}T02:59:59.999Z"
+
+
+def ms_range(a, b):
+    s = int(dt.datetime.fromisoformat(f"{a.isoformat()}T00:00:00-03:00").timestamp() * 1000)
+    e = int(dt.datetime.fromisoformat(f"{(b + dt.timedelta(days=1)).isoformat()}T00:00:00-03:00").timestamp() * 1000)
+    return s, e
+
+
+def kpis(a, b):
+    p = {"confUsuarioId": 0, "crmBoardId": BOARD_ID, "crmCardAcceptStatus": "WIN",
+         "crmCardPriceType": "ALL", "dateFrom": br(a), "dateFromAux": aux_from(a),
+         "dateUntil": br(b), "dateUntilAux": aux_until(b)}
+    j = _get("/api/crm/dashboards/general/quantity/kpi", p)
+    g = lambda k: (j.get(k) or {}).get("countCards", 0)
+    return {"criados": g("created"), "aguardando": g("waiting"), "finalizados": g("closed"),
+            "perdidos": g("lost")}
+
+
+def cards(cf="", cu="", clf="", clu=""):
+    out, off = [], 0
+    while True:
+        p = {"boardId": BOARD_ID, "boardTagId": "", "cardId": "", "clientId": "",
+             "createdAtFrom": cf, "createdAtUntil": cu, "closedAtFrom": clf, "closedAtUntil": clu,
+             "listId": 0, "offset": off, "ownerId": 0, "painelAtendimentoId": "",
+             "qualification": "", "title": ""}
+        b = _get("/api/crm/cards", p)
+        if not b:
+            break
+        out += b
+        if len(b) < 20:
+            break
+        off += 20
+    return out
+
+
+def list_cards(lid):
+    out, off = [], 0
+    while True:
+        b = _get(f"/api/crm/lists/{lid}/cards", {"offset": off})
+        if not b:
+            break
+        out += b
+        if len(b) < 20:
+            break
+        off += 20
+    return out
+
+
+def atendimentos(cf, cu):
+    out, off = [], 0
+    while True:
+        p = {"atendenteId": -1, "botId": 0, "camposSegmentacao": "[]", "cliente": -1,
+             "dataCriacaoDe": cf, "dataCriacaoAte": cu, "departamentoId": -1, "localizacao": "",
+             "mes": -1, "motivoId": -1, "offset": off, "orderByFieldName": "CREATE_DATE",
+             "orderByFieldOrdenation": "DESC", "origem": "TODOS", "status": "Todos"}
+        b = _get("/api/relatorios/atendimentos", p)
+        if not b:
+            break
+        out += b
+        if len(b) < 30:
+            break
+        off += 30
+    return out
+
+
+def ytags(tags):
+    return [t["text"] for t in (tags or []) if str(t.get("backgroundColor", "")).lower() == YELLOW]
+
+
+def collect(a, b):
+    s, e = ms_range(a, b)
+    df, du = br(a), br(b)
+    k = kpis(a, b)
+    created = cards(cf=df, cu=du)
+    closed = cards(clf=df, clu=du)
+    allc = cards()
+    lc, lua = [], {}
+    for lid in LISTS:
+        cs = list_cards(lid)
+        lc += cs
+        for c in cs:
+            lua[c["id"]] = c.get("listUpdatedAt")
+    mc = {c["id"]: ytags((c.get("ticket") or {}).get("tags")) for c in lc}
+    mp = {at.get("protocolo"): ytags(at.get("tags"))
+          for at in atendimentos(br(dt.date(a.year, 1, 1)), du)}
+
+    def tags_for(c):
+        if c["id"] in mc:
+            return mc[c["id"]]
+        pid = c.get("painelAtendimentoId")
+        return mp.get(pid) if pid in mp else None
+
+    def split(cs):
+        tag, sem, nc = defaultdict(int), 0, 0
+        for c in cs:
+            ys = tags_for(c)
+            if ys is None:
+                nc += 1
+            elif not ys:
+                sem += 1
+            else:
+                for y in ys:
+                    tag[y] += 1
+        return {"total": len(cs), "tag": dict(sorted(tag.items(), key=lambda x: -x[1])),
+                "sem": sem, "nc": nc}
+
+    inm = lambda ms: ms is not None and s <= ms < e
+    aceitos = [c for c in list_cards(LIST_EFETIVADO) if inm(c.get("listUpdatedAt"))]
+    perdidos = [c for c in allc if c.get("accept") == "LOST"
+                and (inm(c.get("closedAt")) or (not c.get("closedAt") and inm(lua.get(c["id"]))))]
+    funil = [{"name": LIST_NAMES[l], "v": sum(1 for c in lc if c.get("listId") == l)} for l in LISTS]
+    return {"kpis": k, "criados": split(created), "finalizados": split(closed),
+            "aceitos": split(aceitos), "perdidos": split(perdidos), "funil": funil}
+
+
+def build_html(d, a):
+    ref = f"{MESES[a.month]} / {a.year}"
+    k, ac = d["kpis"], d["aceitos"]["total"]
+    lbl = {"META": "Instagram / Facebook (tráfego pago)", "SITE": "embapi.com.br",
+           "PROSPECÇÃO INTERNA": "time interno", "PROSPECÇÃO REPRESENTANTE": "representantes"}
+    ors = sorted(set(list(d["criados"]["tag"]) + list(d["finalizados"]["tag"]) +
+                     list(d["aceitos"]["tag"]) + list(d["perdidos"]["tag"])),
+                 key=lambda t: -d["criados"]["tag"].get(t, 0))
+    tot = d["criados"]["total"] or 1
+    mx = max([d["criados"]["tag"].get(t, 0) for t in ors] + [1])
+    rows = ""
+    for t in ors:
+        cr = d["criados"]["tag"].get(t, 0); fi = d["finalizados"]["tag"].get(t, 0)
+        ae = d["aceitos"]["tag"].get(t, 0); pe = d["perdidos"]["tag"].get(t, 0)
+        de = lbl.get(t, "")
+        rows += (f'<tr><td class="o"><div class="on"><span class="sw"></span><div><div class="t">{t}</div>'
+                 f'{f"<div class=d>{de}</div>" if de else ""}</div></div></td><td>{cr}</td>'
+                 f'<td class="{"z" if not fi else ""}">{fi}</td><td class="{"g" if ae else "z"}">{ae}</td>'
+                 f'<td class="{"b" if pe else "z"}">{pe}</td>'
+                 f'<td class="bc"><span class="bar" style="width:{round(cr/mx*100)}%"></span>'
+                 f'<span class="pct">{round(cr/tot*100)}%</span></td></tr>')
+    sem = d["criados"]["sem"] + d["criados"]["nc"]
+    rows += (f'<tr class="st"><td class="o"><div class="on"><span class="sw" style="background:#8C8071;border:0"></span>'
+             f'<div class="t">Sem tag / não classif.</div></div></td><td>{sem}</td>'
+             f'<td class="z">{d["finalizados"]["sem"]+d["finalizados"]["nc"]}</td>'
+             f'<td class="z">{d["aceitos"]["sem"]+d["aceitos"]["nc"]}</td>'
+             f'<td class="z">{d["perdidos"]["sem"]+d["perdidos"]["nc"]}</td><td></td></tr>')
+    rows += (f'<tr class="tot"><td class="o"><div class="on"><span class="sw" style="background:transparent;border:0"></span>'
+             f'<div class="t">TOTAL</div></div></td><td>{k["criados"]}</td><td>{k["finalizados"]}</td>'
+             f'<td>{ac}</td><td>{k["perdidos"]}</td><td></td></tr>')
+    fmax = max([f["v"] for f in d["funil"]] + [1])
+    fun = ""
+    for f in d["funil"]:
+        cls = "fwin" if f["name"] == "Pedido Efetivado" else ("flose" if f["name"] == "Lead Desqualificado" else "")
+        fun += (f'<div class="fr {cls}"><div class="fn">{f["name"]}</div><div class="ft">'
+                f'<div class="ff" style="width:{max(f["v"]/fmax*100,1.5)}%"></div></div><div class="fv">{f["v"]}</div></div>')
+    mp = round(d["criados"]["tag"].get("META", 0) / tot * 100)
+    ap = round(d["aceitos"]["tag"].get("PROSPECÇÃO INTERNA", 0) + d["aceitos"]["tag"].get("PROSPECÇÃO REPRESENTANTE", 0))
+    return f"""<!doctype html><html lang=pt-BR><head><meta charset=utf-8><title>Indicador CRM Embapi — {ref}</title><style>
+:root{{--bg:#F4EFE6;--s:#FCFAF5;--s2:#F0E9DC;--ink:#2A2118;--soft:#574B3B;--mut:#8C8071;--ln:#E3D9C9;--lns:#D3C6B0;--ac:#B4681F;--in:#3C6B78;--gd:#2E7D5B;--bd:#B23A2E;--aw:#F3E4D2}}
+@media(prefers-color-scheme:dark){{:root{{--bg:#17130E;--s:#201B14;--s2:#29221A;--ink:#F3ECE0;--soft:#CDC1AF;--mut:#9F927D;--ln:#362D22;--lns:#453A2C;--ac:#DB8A3C;--in:#6FA8B6;--gd:#55B487;--bd:#E0685A;--aw:#3A2A18}}}}
+*{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.5}}
+.w{{max-width:1080px;margin:0 auto;padding:40px 44px 56px}}.eb{{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--mut);font-weight:600;margin:0 0 10px}}
+h1{{font-size:38px;margin:0 0 8px;font-weight:700;letter-spacing:-.02em}}.sub{{color:var(--soft);margin:0;font-size:15px;max-width:66ch}}.sub b{{color:var(--ink)}}
+header{{border-bottom:1px solid var(--ln);padding-bottom:24px;margin-bottom:24px}}.pl{{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}}
+.pill{{display:inline-flex;align-items:center;gap:8px;background:var(--s2);border:1px solid var(--ln);border-radius:999px;padding:6px 14px;font-size:13px;color:var(--soft)}}.pill b{{color:var(--ink)}}
+.dot{{width:8px;height:8px;border-radius:50%;background:var(--gd)}}.sw2{{width:11px;height:11px;border-radius:3px;background:#fff833;display:inline-block}}
+.k{{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}}@media(max-width:760px){{.k{{grid-template-columns:repeat(2,1fr)}}}}
+.kp{{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:18px;position:relative;overflow:hidden}}.kp::before{{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--c)}}
+.kp .l{{font-size:12.5px;font-weight:600;color:var(--soft)}}.kp .n{{font-size:40px;font-weight:700;letter-spacing:-.02em;margin:6px 0 2px;font-variant-numeric:tabular-nums;color:var(--c)}}.kp .m{{font-size:12.5px;color:var(--mut)}}
+.k1{{--c:var(--ac)}}.k2{{--c:var(--in)}}.k3{{--c:var(--gd)}}.k4{{--c:var(--bd)}}
+.ss{{display:flex;gap:10px;align-items:center;margin-top:12px;font-size:13px;color:var(--soft)}}.ss .x{{background:var(--s2);border:1px solid var(--ln);border-radius:8px;padding:6px 12px;font-weight:600}}.ss .x b{{color:var(--ink)}}
+.co{{background:var(--aw);border:1px solid var(--lns);border-radius:14px;padding:16px 18px;margin-top:20px;display:flex;gap:14px;align-items:center}}.co .big{{font-size:34px;font-weight:800;color:var(--ac);font-variant-numeric:tabular-nums}}.co p{{margin:0;font-size:14px;color:var(--soft)}}.co p b{{color:var(--ink)}}
+.h2{{font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);font-weight:700;margin:34px 0 14px;display:flex;align-items:baseline;gap:10px}}.h2 span{{flex:1;height:1px;background:var(--ln)}}
+.pn{{background:var(--s);border:1px solid var(--ln);border-radius:16px;overflow:hidden}}.tsc{{overflow-x:auto}}table{{width:100%;border-collapse:collapse;min-width:580px}}
+thead th{{text-align:right;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:700;padding:14px 16px;border-bottom:1px solid var(--lns)}}thead th:first-child{{text-align:left}}
+tbody td{{padding:12px 16px;border-bottom:1px solid var(--ln);font-variant-numeric:tabular-nums;text-align:right;font-size:15px}}.o{{text-align:left}}.on{{display:flex;align-items:center;gap:10px}}
+.sw{{width:11px;height:11px;border-radius:3px;background:#fff833;border:1px solid rgba(0,0,0,.12);flex:none}}.on .t{{font-weight:600;font-size:14.5px}}.on .d{{font-size:11.5px;color:var(--mut)}}
+.bc .bar{{display:inline-block;height:7px;border-radius:4px;background:var(--ac);vertical-align:middle;margin-right:10px}}.pct{{font-size:12.5px;color:var(--mut)}}.z{{color:var(--mut)}}.g{{color:var(--gd);font-weight:600}}.b{{color:var(--bd);font-weight:600}}
+tr.tot td{{font-weight:700;background:var(--s2);border-top:1px solid var(--lns)}}tr.st td{{color:var(--mut)}}
+.nt{{font-size:12.5px;color:var(--mut);margin-top:12px}}.nt b{{color:var(--soft)}}
+.fr{{display:grid;grid-template-columns:190px 1fr 52px;align-items:center;gap:14px;margin-bottom:10px}}.fn{{font-size:13.5px;font-weight:600;color:var(--soft)}}
+.ft{{background:var(--s2);border-radius:6px;height:26px;overflow:hidden;border:1px solid var(--ln)}}.ff{{height:100%;background:var(--in);opacity:.9}}.fwin .ff{{background:var(--gd)}}.flose .ff{{background:var(--bd)}}.fv{{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:14px}}
+</style></head><body><div class="w">
+<header><p class="eb">Indicador mensal · CRM SMBOT · board #{BOARD_ID}</p><h1>Contatos do CRM — Embapi Embalagens</h1>
+<p class="sub">Referência: <b>{ref}</b>. Base: contatos/cards do board CRM Embapi (Dashboard Geral). Origem pela tag amarela do atendimento.</p>
+<div class="pl"><span class="pill"><span class="dot"></span> Canal: <b>100% WhatsApp</b></span><span class="pill"><span class="sw2"></span> Origem = <b>tag amarela</b></span></div></header>
+<div class="k"><div class="kp k1"><div class="l">Contatos criados</div><div class="n">{k['criados']}</div><div class="m">novos no mês</div></div>
+<div class="kp k2"><div class="l">Finalizados</div><div class="n">{k['finalizados']}</div><div class="m">encerrados no mês</div></div>
+<div class="kp k3"><div class="l">Aceitos (Pedido Efetivado)</div><div class="n">{ac}</div><div class="m">entraram em Pedido Efetivado</div></div>
+<div class="kp k4"><div class="l">Perdidos</div><div class="n">{k['perdidos']}</div><div class="m">marcados como perdidos</div></div></div>
+<div class="ss"><span class="x">Aguardando: <b>{k['aguardando']}</b></span><span>criados no mês ainda em aberto</span></div>
+<div class="co"><div class="big">{mp}%</div><p>dos contatos criados vieram do <b>META</b> (tráfego pago Instagram / Facebook). Dos {ac} aceitos, a <b>Prospecção fez {ap}</b> — a prospecção ativa converte mais por contato.</p></div>
+<div class="h2">Por origem — tags amarelas <span></span></div>
+<div class="pn tsc"><table><thead><tr><th>Origem</th><th>Criados</th><th>Finalizados</th><th>Aceitos*</th><th>Perdidos*</th><th style="width:26%">% dos criados</th></tr></thead><tbody>{rows}</tbody></table></div>
+<p class="nt">* <b>Aceitos e Perdidos por origem são aproximados</b> (a API não expõe a data exata de ganho/perda por card). Os totais oficiais estão corretos.</p>
+<div class="h2">Funil do CRM — distribuição atual dos cards <span></span></div>
+<div class="pn" style="padding:20px">{fun}<p class="nt" style="margin-top:6px">{sum(f['v'] for f in d['funil'])} cards abertos no board.</p></div>
+</div></body></html>"""
+
+
+def main():
+    if not TOKEN or "COLE_SEU_TOKEN" in TOKEN:
+        print("ERRO: SMBOT_TOKEN não configurado.", file=sys.stderr)
+        sys.exit(2)
+    a, b = month_range(os.environ.get("REF_MONTH"))
+    d = collect(a, b)
+    out = f"indicador_crm_{a.year}-{a.month:02d}.html"
+    with open(out, "w", encoding="utf-8") as fh:
+        fh.write(build_html(d, a))
+    k = d["kpis"]
+    top = " · ".join(f"{t} {n}" for t, n in list(d["criados"]["tag"].items())[:4])
+    print(f"OK — {MESES[a.month]}/{a.year} -> {out}")
+    print(f"Criados {k['criados']} · Finalizados {k['finalizados']} · "
+          f"Aceitos {d['aceitos']['total']} · Perdidos {k['perdidos']} · Aguardando {k['aguardando']}")
+    print(f"Origem dos criados: {top}")
+
+
+if __name__ == "__main__":
+    main()
