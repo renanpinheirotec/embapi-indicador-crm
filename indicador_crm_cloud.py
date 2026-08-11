@@ -282,11 +282,6 @@ tr.tot td{{font-weight:700;background:var(--s2);border-top:1px solid var(--lns)}
 <header><p class="eb">Indicador mensal · CRM SMBOT · board #{BOARD_ID}</p><h1>Contatos do CRM — Embapi Embalagens</h1>
 <p class="sub">Referência: <b>{ref}</b>. Base: contatos/cards do board CRM Embapi (Dashboard Geral). Origem pela tag amarela do atendimento.</p>
 <div class="pl"><span class="pill"><span class="dot"></span> Canal: <b>100% WhatsApp</b></span><span class="pill"><span class="sw2"></span> Origem = <b>tag amarela</b></span></div></header>
-<div class="k"><div class="kp k1"><div class="l">Contatos criados</div><div class="n">{k['criados']}</div><div class="m">novos no mês</div></div>
-<div class="kp k2"><div class="l">Finalizados</div><div class="n">{k['finalizados']}</div><div class="m">encerrados no mês</div></div>
-<div class="kp k3"><div class="l">Aceitos (Pedido Efetivado)</div><div class="n">{ac}</div><div class="m">entraram em Pedido Efetivado</div></div>
-<div class="kp k4"><div class="l">Perdidos</div><div class="n">{k['perdidos']}</div><div class="m">marcados como perdidos</div></div></div>
-<div class="ss"><span class="x">Aguardando: <b>{k['aguardando']}</b></span><span>criados no mês ainda em aberto</span></div>
 <div class="co"><div class="big">{mp}%</div><p>dos contatos criados vieram do <b>META</b> (tráfego pago Instagram / Facebook). Dos {ac} aceitos, a <b>Prospecção fez {ap}</b> — a prospecção ativa converte mais por contato.</p></div>
 <div class="h2">Por vendedor <span></span></div>
 <div class="pn tsc"><table><thead><tr><th>Vendedor</th><th>Criados</th><th>Finalizados</th><th>Aceitos</th><th>Perdidos</th></tr></thead><tbody>{vrows}</tbody></table></div>
