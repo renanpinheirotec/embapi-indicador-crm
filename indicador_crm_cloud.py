@@ -132,6 +132,12 @@ def ytags(tags):
     return [t["text"] for t in (tags or []) if str(t.get("backgroundColor", "")).lower() == YELLOW]
 
 
+def get_users():
+    j = _get(f"/api/crm/boards/{BOARD_ID}/users")
+    arr = j if isinstance(j, list) else j.get("users", [])
+    return {u["id"]: (u.get("name") or u.get("nome") or u.get("displayName") or f"#{u['id']}") for u in arr}
+
+
 def collect(a, b):
     s, e = ms_range(a, b)
     df, du = br(a), br(b)
@@ -178,8 +184,25 @@ def collect(a, b):
         rz = (c.get("lostReasonText") or "").strip() or "(sem motivo registrado)"
         motivos[rz] += 1
     perdidos_motivo = dict(sorted(motivos.items(), key=lambda x: -x[1]))
+
+    users = get_users()
+
+    def by_owner(cs):
+        o = defaultdict(int)
+        for c in cs:
+            o[c.get("ownerId") or 0] += 1
+        return o
+    oc, ofi, oa, op = by_owner(created), by_owner(closed), by_owner(aceitos), by_owner(perdidos)
+    por_vendedor = []
+    for oid in set(list(oc) + list(ofi) + list(oa) + list(op)):
+        nome = "Sem responsável" if not oid else users.get(oid, f"#{oid}")
+        por_vendedor.append({"nome": nome, "criados": oc.get(oid, 0), "finalizados": ofi.get(oid, 0),
+                             "aceitos": oa.get(oid, 0), "perdidos": op.get(oid, 0)})
+    por_vendedor.sort(key=lambda x: -x["criados"])
+
     return {"kpis": k, "criados": split(created), "finalizados": split(closed),
-            "aceitos": split(aceitos), "perdidos": split(perdidos), "perdidos_motivo": perdidos_motivo}
+            "aceitos": split(aceitos), "perdidos": split(perdidos),
+            "perdidos_motivo": perdidos_motivo, "por_vendedor": por_vendedor}
 
 
 def build_html(d, a):
@@ -222,6 +245,14 @@ def build_html(d, a):
                 f'<div class="fv">{n} <span style="color:#8C8071;font-weight:600">{round(n / mtot * 100)}%</span></div></div>')
     mp = round(d["criados"]["tag"].get("META", 0) / tot * 100)
     ap = round(d["aceitos"]["tag"].get("PROSPECÇÃO INTERNA", 0) + d["aceitos"]["tag"].get("PROSPECÇÃO REPRESENTANTE", 0))
+    vrows = ""
+    for v in d.get("por_vendedor", []):
+        vrows += (f'<tr><td class="o"><div class="on"><div class="t">{v["nome"]}</div></div></td>'
+                  f'<td>{v["criados"]}</td><td class="{"z" if not v["finalizados"] else ""}">{v["finalizados"]}</td>'
+                  f'<td class="{"g" if v["aceitos"] else "z"}">{v["aceitos"]}</td>'
+                  f'<td class="{"b" if v["perdidos"] else "z"}">{v["perdidos"]}</td></tr>')
+    vrows += (f'<tr class="tot"><td class="o"><div class="on"><div class="t">TOTAL</div></div></td>'
+              f'<td>{k["criados"]}</td><td>{k["finalizados"]}</td><td>{ac}</td><td>{k["perdidos"]}</td></tr>')
     return f"""<!doctype html><html lang=pt-BR><head><meta charset=utf-8><title>Indicador CRM Embapi — {ref}</title><style>
 :root{{--bg:#F4EFE6;--s:#FCFAF5;--s2:#F0E9DC;--ink:#2A2118;--soft:#574B3B;--mut:#8C8071;--ln:#E3D9C9;--lns:#D3C6B0;--ac:#B4681F;--in:#3C6B78;--gd:#2E7D5B;--bd:#B23A2E;--aw:#F3E4D2}}
 @media(prefers-color-scheme:dark){{:root{{--bg:#17130E;--s:#201B14;--s2:#29221A;--ink:#F3ECE0;--soft:#CDC1AF;--mut:#9F927D;--ln:#362D22;--lns:#453A2C;--ac:#DB8A3C;--in:#6FA8B6;--gd:#55B487;--bd:#E0685A;--aw:#3A2A18}}}}
@@ -257,6 +288,8 @@ tr.tot td{{font-weight:700;background:var(--s2);border-top:1px solid var(--lns)}
 <div class="kp k4"><div class="l">Perdidos</div><div class="n">{k['perdidos']}</div><div class="m">marcados como perdidos</div></div></div>
 <div class="ss"><span class="x">Aguardando: <b>{k['aguardando']}</b></span><span>criados no mês ainda em aberto</span></div>
 <div class="co"><div class="big">{mp}%</div><p>dos contatos criados vieram do <b>META</b> (tráfego pago Instagram / Facebook). Dos {ac} aceitos, a <b>Prospecção fez {ap}</b> — a prospecção ativa converte mais por contato.</p></div>
+<div class="h2">Por vendedor <span></span></div>
+<div class="pn tsc"><table><thead><tr><th>Vendedor</th><th>Criados</th><th>Finalizados</th><th>Aceitos</th><th>Perdidos</th></tr></thead><tbody>{vrows}</tbody></table></div>
 <div class="h2">Por origem — tags amarelas <span></span></div>
 <div class="pn tsc"><table><thead><tr><th>Origem</th><th>Criados</th><th>Finalizados</th><th>Aceitos*</th><th>Perdidos*</th><th style="width:26%">% dos criados</th></tr></thead><tbody>{rows}</tbody></table></div>
 <p class="nt">* <b>Aceitos e Perdidos por origem são aproximados</b> (a API não expõe a data exata de ganho/perda por card). Os totais oficiais estão corretos.</p>
