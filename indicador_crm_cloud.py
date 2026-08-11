@@ -256,40 +256,38 @@ def build_html(d, a):
     return f"""<!doctype html><html lang=pt-BR><head><meta charset=utf-8><title>Indicador CRM Embapi — {ref}</title><style>
 :root{{--bg:#F4EFE6;--s:#FCFAF5;--s2:#F0E9DC;--ink:#2A2118;--soft:#574B3B;--mut:#8C8071;--ln:#E3D9C9;--lns:#D3C6B0;--ac:#B4681F;--in:#3C6B78;--gd:#2E7D5B;--bd:#B23A2E;--aw:#F3E4D2}}
 @media(prefers-color-scheme:dark){{:root{{--bg:#17130E;--s:#201B14;--s2:#29221A;--ink:#F3ECE0;--soft:#CDC1AF;--mut:#9F927D;--ln:#362D22;--lns:#453A2C;--ac:#DB8A3C;--in:#6FA8B6;--gd:#55B487;--bd:#E0685A;--aw:#3A2A18}}}}
-*{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.5}}
-.w{{max-width:1080px;margin:0 auto;padding:40px 44px 56px}}.eb{{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--mut);font-weight:600;margin:0 0 10px}}
-h1{{font-size:38px;margin:0 0 8px;font-weight:700;letter-spacing:-.02em}}.sub{{color:var(--soft);margin:0;font-size:15px;max-width:66ch}}.sub b{{color:var(--ink)}}
-header{{border-bottom:1px solid var(--ln);padding-bottom:24px;margin-bottom:24px}}.pl{{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}}
-.pill{{display:inline-flex;align-items:center;gap:8px;background:var(--s2);border:1px solid var(--ln);border-radius:999px;padding:6px 14px;font-size:13px;color:var(--soft)}}.pill b{{color:var(--ink)}}
-.dot{{width:8px;height:8px;border-radius:50%;background:var(--gd)}}.sw2{{width:11px;height:11px;border-radius:3px;background:#fff833;display:inline-block}}
-.k{{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}}@media(max-width:760px){{.k{{grid-template-columns:repeat(2,1fr)}}}}
-.kp{{background:var(--s);border:1px solid var(--ln);border-radius:14px;padding:18px;position:relative;overflow:hidden}}.kp::before{{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--c)}}
-.kp .l{{font-size:12.5px;font-weight:600;color:var(--soft)}}.kp .n{{font-size:40px;font-weight:700;letter-spacing:-.02em;margin:6px 0 2px;font-variant-numeric:tabular-nums;color:var(--c)}}.kp .m{{font-size:12.5px;color:var(--mut)}}
-.k1{{--c:var(--ac)}}.k2{{--c:var(--in)}}.k3{{--c:var(--gd)}}.k4{{--c:var(--bd)}}
-.ss{{display:flex;gap:10px;align-items:center;margin-top:12px;font-size:13px;color:var(--soft)}}.ss .x{{background:var(--s2);border:1px solid var(--ln);border-radius:8px;padding:6px 12px;font-weight:600}}.ss .x b{{color:var(--ink)}}
-.co{{background:var(--aw);border:1px solid var(--lns);border-radius:14px;padding:16px 18px;margin-top:20px;display:flex;gap:14px;align-items:center}}.co .big{{font-size:34px;font-weight:800;color:var(--ac);font-variant-numeric:tabular-nums}}.co p{{margin:0;font-size:14px;color:var(--soft)}}.co p b{{color:var(--ink)}}
-.h2{{font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);font-weight:700;margin:34px 0 14px;display:flex;align-items:baseline;gap:10px}}.h2 span{{flex:1;height:1px;background:var(--ln)}}
-.pn{{background:var(--s);border:1px solid var(--ln);border-radius:16px;overflow:hidden}}.tsc{{overflow-x:auto}}table{{width:100%;border-collapse:collapse;min-width:580px}}
-thead th{{text-align:right;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);font-weight:700;padding:14px 16px;border-bottom:1px solid var(--lns)}}thead th:first-child{{text-align:left}}
-tbody td{{padding:12px 16px;border-bottom:1px solid var(--ln);font-variant-numeric:tabular-nums;text-align:right;font-size:15px}}.o{{text-align:left}}.on{{display:flex;align-items:center;gap:10px}}
-.sw{{width:11px;height:11px;border-radius:3px;background:#fff833;border:1px solid rgba(0,0,0,.12);flex:none}}.on .t{{font-weight:600;font-size:14.5px}}.on .d{{font-size:11.5px;color:var(--mut)}}
-.bc .bar{{display:inline-block;height:7px;border-radius:4px;background:var(--ac);vertical-align:middle;margin-right:10px}}.pct{{font-size:12.5px;color:var(--mut)}}.z{{color:var(--mut)}}.g{{color:var(--gd);font-weight:600}}.b{{color:var(--bd);font-weight:600}}
-tr.tot td{{font-weight:700;background:var(--s2);border-top:1px solid var(--lns)}}tr.st td{{color:var(--mut)}}
-.nt{{font-size:12.5px;color:var(--mut);margin-top:12px}}.nt b{{color:var(--soft)}}
-.fr{{display:grid;grid-template-columns:210px 1fr 92px;align-items:center;gap:14px;margin-bottom:10px}}.fn{{font-size:13.5px;font-weight:600;color:var(--soft)}}
-.ft{{background:var(--s2);border-radius:6px;height:26px;overflow:hidden;border:1px solid var(--ln)}}.ff{{height:100%;background:var(--in);opacity:.9}}.fwin .ff{{background:var(--gd)}}.flose .ff{{background:var(--bd)}}.fv{{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:14px}}
+*{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.4}}
+.w{{width:1280px;margin:0 auto;padding:26px 30px 30px}}
+.hd{{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid var(--ln);padding-bottom:12px;margin-bottom:14px;gap:20px}}
+.eb{{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--mut);font-weight:600;margin:0 0 4px}}
+h1{{font-size:25px;margin:0;font-weight:700;letter-spacing:-.02em}}
+.pills{{display:flex;gap:8px;flex:none}}
+.pill{{display:inline-flex;align-items:center;gap:7px;background:var(--s2);border:1px solid var(--ln);border-radius:999px;padding:5px 12px;font-size:12px;color:var(--soft);white-space:nowrap}}.pill b{{color:var(--ink)}}
+.dot{{width:7px;height:7px;border-radius:50%;background:var(--gd)}}.sw2{{width:10px;height:10px;border-radius:2px;background:#fff833;display:inline-block}}
+.ins{{background:var(--aw);border:1px solid var(--lns);border-radius:10px;padding:9px 16px;font-size:13px;color:var(--soft);margin-bottom:16px}}.ins b{{color:var(--ink)}}.ins .big{{color:var(--ac);font-weight:800;font-size:15px}}
+.grid2{{display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:start}}
+.h2{{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--mut);font-weight:700;margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--ln)}}
+table{{width:100%;border-collapse:collapse}}
+thead th{{text-align:right;font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);font-weight:700;padding:6px 10px;border-bottom:1px solid var(--lns)}}thead th:first-child{{text-align:left}}
+tbody td{{padding:7px 10px;border-bottom:1px solid var(--ln);font-variant-numeric:tabular-nums;text-align:right;font-size:13.5px}}
+.o{{text-align:left}}.on{{display:flex;align-items:center;gap:8px}}
+.sw{{width:10px;height:10px;border-radius:2px;background:#fff833;border:1px solid rgba(0,0,0,.12);flex:none}}.on .t{{font-weight:600;font-size:13.5px}}.on .d{{font-size:10.5px;color:var(--mut)}}
+.bc .bar{{display:inline-block;height:6px;border-radius:3px;background:var(--ac);vertical-align:middle;margin-right:8px}}.pct{{font-size:11.5px;color:var(--mut)}}.z{{color:var(--mut)}}.g{{color:var(--gd);font-weight:600}}.b{{color:var(--bd);font-weight:600}}
+tr.tot td{{font-weight:700;background:var(--s2)}}tr.st td{{color:var(--mut)}}
+.nt{{font-size:11px;color:var(--mut);margin:8px 0 0}}.nt b{{color:var(--soft)}}
+.fr{{display:grid;grid-template-columns:158px 1fr 70px;align-items:center;gap:10px;margin-bottom:7px}}.fn{{font-size:11.5px;font-weight:600;color:var(--soft);line-height:1.15}}
+.ft{{background:var(--s2);border-radius:5px;height:20px;overflow:hidden;border:1px solid var(--ln)}}.ff{{height:100%;background:var(--bd);opacity:.9}}.fv{{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:13px}}
 </style></head><body><div class="w">
-<header><p class="eb">Indicador mensal · CRM SMBOT · board #{BOARD_ID}</p><h1>Contatos do CRM — Embapi Embalagens</h1>
-<p class="sub">Referência: <b>{ref}</b>. Base: contatos/cards do board CRM Embapi (Dashboard Geral). Origem pela tag amarela do atendimento.</p>
-<div class="pl"><span class="pill"><span class="dot"></span> Canal: <b>100% WhatsApp</b></span><span class="pill"><span class="sw2"></span> Origem = <b>tag amarela</b></span></div></header>
-<div class="co"><div class="big">{mp}%</div><p>dos contatos criados vieram do <b>META</b> (tráfego pago Instagram / Facebook). Dos {ac} aceitos, a <b>Prospecção fez {ap}</b> — a prospecção ativa converte mais por contato.</p></div>
-<div class="h2">Por vendedor <span></span></div>
-<div class="pn tsc"><table><thead><tr><th>Vendedor</th><th>Criados</th><th>Finalizados</th><th>Aceitos</th><th>Perdidos</th></tr></thead><tbody>{vrows}</tbody></table></div>
-<div class="h2">Por origem — tags amarelas <span></span></div>
-<div class="pn tsc"><table><thead><tr><th>Origem</th><th>Criados</th><th>Finalizados</th><th>Aceitos*</th><th>Perdidos*</th><th style="width:26%">% dos criados</th></tr></thead><tbody>{rows}</tbody></table></div>
-<p class="nt">* <b>Aceitos e Perdidos por origem são aproximados</b> (a API não expõe a data exata de ganho/perda por card). Os totais oficiais estão corretos.</p>
-<div class="h2">Perdidos — por que foi perdido <span></span></div>
-<div class="pn" style="padding:20px">{fun}<p class="nt" style="margin-top:6px">Total oficial de perdidos no mês: <b>{k['perdidos']}</b>. Distribuição por motivo sobre {mtot} contatos com marcação registrada.</p></div>
+<div class="hd"><div><div class="eb">Indicador mensal · CRM SMBOT · board #{BOARD_ID}</div><h1>Contatos do CRM — Embapi · {ref}</h1></div>
+<div class="pills"><span class="pill"><span class="dot"></span> Canal: <b>100% WhatsApp</b></span><span class="pill"><span class="sw2"></span> Origem = <b>tag amarela</b></span></div></div>
+<div class="ins"><span class="big">{mp}%</span> dos contatos criados vieram do <b>META</b> (tráfego pago Instagram/Facebook). Dos <b>{ac}</b> aceitos, a <b>Prospecção fez {ap}</b> — converte mais por contato.</div>
+<div class="grid2">
+<div><div class="h2">Por vendedor</div><table><thead><tr><th>Vendedor</th><th>Criados</th><th>Final.</th><th>Aceitos</th><th>Perdidos</th></tr></thead><tbody>{vrows}</tbody></table></div>
+<div><div class="h2">Perdidos — por que foi perdido</div>{fun}<p class="nt">Total oficial de perdidos: <b>{k['perdidos']}</b> · distribuição sobre {mtot} contatos com motivo.</p></div>
+</div>
+<div class="h2" style="margin-top:16px">Por origem — tags amarelas</div>
+<table><thead><tr><th>Origem</th><th>Criados</th><th>Final.</th><th>Aceitos*</th><th>Perdidos*</th><th style="width:24%">% dos criados</th></tr></thead><tbody>{rows}</tbody></table>
+<p class="nt">* Aceitos e Perdidos por origem são aproximados (a API não expõe a data exata por card); os totais oficiais estão corretos.</p>
 </div></body></html>"""
 
 
