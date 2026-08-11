@@ -173,9 +173,13 @@ def collect(a, b):
     aceitos = [c for c in list_cards(LIST_EFETIVADO) if inm(c.get("listUpdatedAt"))]
     perdidos = [c for c in allc if c.get("accept") == "LOST"
                 and (inm(c.get("closedAt")) or (not c.get("closedAt") and inm(lua.get(c["id"]))))]
-    funil = [{"name": LIST_NAMES[l], "v": sum(1 for c in lc if c.get("listId") == l)} for l in LISTS]
+    motivos = defaultdict(int)
+    for c in perdidos:
+        rz = (c.get("lostReasonText") or "").strip() or "(sem motivo registrado)"
+        motivos[rz] += 1
+    perdidos_motivo = dict(sorted(motivos.items(), key=lambda x: -x[1]))
     return {"kpis": k, "criados": split(created), "finalizados": split(closed),
-            "aceitos": split(aceitos), "perdidos": split(perdidos), "funil": funil}
+            "aceitos": split(aceitos), "perdidos": split(perdidos), "perdidos_motivo": perdidos_motivo}
 
 
 def build_html(d, a):
@@ -208,12 +212,14 @@ def build_html(d, a):
     rows += (f'<tr class="tot"><td class="o"><div class="on"><span class="sw" style="background:transparent;border:0"></span>'
              f'<div class="t">TOTAL</div></div></td><td>{k["criados"]}</td><td>{k["finalizados"]}</td>'
              f'<td>{ac}</td><td>{k["perdidos"]}</td><td></td></tr>')
-    fmax = max([f["v"] for f in d["funil"]] + [1])
+    mot = d.get("perdidos_motivo", {})
+    mtot = sum(mot.values()) or 1
+    mmax = max(list(mot.values()) + [1])
     fun = ""
-    for f in d["funil"]:
-        cls = "fwin" if f["name"] == "Pedido Efetivado" else ("flose" if f["name"] == "Lead Desqualificado" else "")
-        fun += (f'<div class="fr {cls}"><div class="fn">{f["name"]}</div><div class="ft">'
-                f'<div class="ff" style="width:{max(f["v"]/fmax*100,1.5)}%"></div></div><div class="fv">{f["v"]}</div></div>')
+    for rz, n in mot.items():
+        fun += (f'<div class="fr flose"><div class="fn">{rz}</div><div class="ft">'
+                f'<div class="ff" style="width:{max(n / mmax * 100, 1.5)}%"></div></div>'
+                f'<div class="fv">{n} <span style="color:#8C8071;font-weight:600">{round(n / mtot * 100)}%</span></div></div>')
     mp = round(d["criados"]["tag"].get("META", 0) / tot * 100)
     ap = round(d["aceitos"]["tag"].get("PROSPECÇÃO INTERNA", 0) + d["aceitos"]["tag"].get("PROSPECÇÃO REPRESENTANTE", 0))
     return f"""<!doctype html><html lang=pt-BR><head><meta charset=utf-8><title>Indicador CRM Embapi — {ref}</title><style>
@@ -239,7 +245,7 @@ tbody td{{padding:12px 16px;border-bottom:1px solid var(--ln);font-variant-numer
 .bc .bar{{display:inline-block;height:7px;border-radius:4px;background:var(--ac);vertical-align:middle;margin-right:10px}}.pct{{font-size:12.5px;color:var(--mut)}}.z{{color:var(--mut)}}.g{{color:var(--gd);font-weight:600}}.b{{color:var(--bd);font-weight:600}}
 tr.tot td{{font-weight:700;background:var(--s2);border-top:1px solid var(--lns)}}tr.st td{{color:var(--mut)}}
 .nt{{font-size:12.5px;color:var(--mut);margin-top:12px}}.nt b{{color:var(--soft)}}
-.fr{{display:grid;grid-template-columns:190px 1fr 52px;align-items:center;gap:14px;margin-bottom:10px}}.fn{{font-size:13.5px;font-weight:600;color:var(--soft)}}
+.fr{{display:grid;grid-template-columns:210px 1fr 92px;align-items:center;gap:14px;margin-bottom:10px}}.fn{{font-size:13.5px;font-weight:600;color:var(--soft)}}
 .ft{{background:var(--s2);border-radius:6px;height:26px;overflow:hidden;border:1px solid var(--ln)}}.ff{{height:100%;background:var(--in);opacity:.9}}.fwin .ff{{background:var(--gd)}}.flose .ff{{background:var(--bd)}}.fv{{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:14px}}
 </style></head><body><div class="w">
 <header><p class="eb">Indicador mensal · CRM SMBOT · board #{BOARD_ID}</p><h1>Contatos do CRM — Embapi Embalagens</h1>
@@ -254,8 +260,8 @@ tr.tot td{{font-weight:700;background:var(--s2);border-top:1px solid var(--lns)}
 <div class="h2">Por origem — tags amarelas <span></span></div>
 <div class="pn tsc"><table><thead><tr><th>Origem</th><th>Criados</th><th>Finalizados</th><th>Aceitos*</th><th>Perdidos*</th><th style="width:26%">% dos criados</th></tr></thead><tbody>{rows}</tbody></table></div>
 <p class="nt">* <b>Aceitos e Perdidos por origem são aproximados</b> (a API não expõe a data exata de ganho/perda por card). Os totais oficiais estão corretos.</p>
-<div class="h2">Funil do CRM — distribuição atual dos cards <span></span></div>
-<div class="pn" style="padding:20px">{fun}<p class="nt" style="margin-top:6px">{sum(f['v'] for f in d['funil'])} cards abertos no board.</p></div>
+<div class="h2">Perdidos — por que foi perdido <span></span></div>
+<div class="pn" style="padding:20px">{fun}<p class="nt" style="margin-top:6px">Total oficial de perdidos no mês: <b>{k['perdidos']}</b>. Distribuição por motivo sobre {mtot} contatos com marcação registrada.</p></div>
 </div></body></html>"""
 
 
