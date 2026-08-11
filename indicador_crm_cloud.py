@@ -254,11 +254,10 @@ def build_html(d, a):
     vrows += (f'<tr class="tot"><td class="o"><div class="on"><div class="t">TOTAL</div></div></td>'
               f'<td>{k["criados"]}</td><td>{k["finalizados"]}</td><td>{ac}</td><td>{k["perdidos"]}</td></tr>')
     return f"""<!doctype html><html lang=pt-BR><head><meta charset=utf-8><title>Indicador CRM Embapi — {ref}</title><style>
-:root{{--bg:#F4EFE6;--s:#FCFAF5;--s2:#F0E9DC;--ink:#2A2118;--soft:#574B3B;--mut:#8C8071;--ln:#E3D9C9;--lns:#D3C6B0;--ac:#B4681F;--in:#3C6B78;--gd:#2E7D5B;--bd:#B23A2E;--aw:#F3E4D2}}
-@media(prefers-color-scheme:dark){{:root{{--bg:#17130E;--s:#201B14;--s2:#29221A;--ink:#F3ECE0;--soft:#CDC1AF;--mut:#9F927D;--ln:#362D22;--lns:#453A2C;--ac:#DB8A3C;--in:#6FA8B6;--gd:#55B487;--bd:#E0685A;--aw:#3A2A18}}}}
+:root{{--bg:#FFFFFF;--s:#FFFFFF;--s2:#F6F2EA;--ink:#23201C;--soft:#5A5348;--mut:#948B7D;--ln:#ECE6DA;--lns:#DDD5C6;--ac:#E78700;--in:#0E8A86;--gd:#5E8E1E;--bd:#C0392B;--aw:#FDF0DA}}
 *{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.4}}
 .w{{width:1280px;margin:0 auto;padding:26px 30px 30px}}
-.hd{{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid var(--ln);padding-bottom:12px;margin-bottom:14px;gap:20px}}
+.hd{{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid var(--ac);padding-bottom:12px;margin-bottom:14px;gap:20px}}
 .eb{{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--mut);font-weight:600;margin:0 0 4px}}
 h1{{font-size:25px;margin:0;font-weight:700;letter-spacing:-.02em}}
 .pills{{display:flex;gap:8px;flex:none}}
