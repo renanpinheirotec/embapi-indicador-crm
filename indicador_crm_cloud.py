@@ -25,6 +25,14 @@ H = {"Accept": "application/json", "Authorization": TOKEN}
 MESES = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
          "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
 
+# Identidade visual por empresa (fundo branco; verde/vermelho são sinais de aceito/perdido)
+BRANDS = {
+    "embapi": {"label": "Embapi", "board": 8273, "ac": "#E78700", "dark": "#B4681F",
+               "aw": "#FDF0DA", "ink": "#23201C", "s2": "#F6F2EA", "ln": "#ECE6DA", "lns": "#DDD5C6"},
+    "newup": {"label": "NEWUP", "board": 8348, "ac": "#810293", "dark": "#3D1068",
+              "aw": "#F3E6F7", "ink": "#241033", "s2": "#F5F0F8", "ln": "#EBE3F1", "lns": "#DCCFE7"},
+}
+
 
 class SmbotError(Exception):
     pass
@@ -144,7 +152,6 @@ def collect(a, b):
     k = kpis(a, b)
     created = cards(cf=df, cu=du)
     closed = cards(clf=df, clu=du)
-    allc = cards()
     lc, lua = [], {}
     for lid in LISTS:
         cs = list_cards(lid)
@@ -177,13 +184,17 @@ def collect(a, b):
 
     inm = lambda ms: ms is not None and s <= ms < e
     aceitos = [c for c in list_cards(LIST_EFETIVADO) if inm(c.get("listUpdatedAt"))]
-    perdidos = [c for c in allc if c.get("accept") == "LOST"
-                and (inm(c.get("closedAt")) or (not c.get("closedAt") and inm(lua.get(c["id"]))))]
-    motivos = defaultdict(int)
-    for c in perdidos:
-        rz = (c.get("lostReasonText") or "").strip() or "(sem motivo registrado)"
-        motivos[rz] += 1
-    perdidos_motivo = dict(sorted(motivos.items(), key=lambda x: -x[1]))
+
+    # Perdidos OFICIAL (por data de perda) via dashboard accept/reasons — soma bate com o KPI "lost".
+    qp = {"crmBoardId": BOARD_ID, "dateFrom": df, "dateFromAux": aux_from(a),
+          "dateUntil": du, "dateUntilAux": aux_until(b)}
+
+    def lost_reasons(user_id=0):
+        p = dict(qp, accept="LOST", confUsuarioId=user_id)
+        j = _get("/api/crm/dashboards/accept/reasons", p)
+        return j if isinstance(j, list) else []
+    perdidos_motivo = {(x.get("name") or "(sem motivo registrado)"): x.get("countCards", 0)
+                       for x in lost_reasons(0)}
 
     users = get_users()
 
@@ -192,49 +203,53 @@ def collect(a, b):
         for c in cs:
             o[c.get("ownerId") or 0] += 1
         return o
-    oc, ofi, oa, op = by_owner(created), by_owner(closed), by_owner(aceitos), by_owner(perdidos)
+    oc, ofi, oa = by_owner(created), by_owner(closed), by_owner(aceitos)
+    lost_by = {uid: sum(x.get("countCards", 0) for x in lost_reasons(uid)) for uid in users}
     por_vendedor = []
-    for oid in set(list(oc) + list(ofi) + list(oa) + list(op)):
+    for oid in set(list(oc) + list(ofi) + list(oa) + list(lost_by)):
         nome = "Sem responsável" if not oid else users.get(oid, f"#{oid}")
-        por_vendedor.append({"nome": nome, "criados": oc.get(oid, 0), "finalizados": ofi.get(oid, 0),
-                             "aceitos": oa.get(oid, 0), "perdidos": op.get(oid, 0)})
+        v = {"nome": nome, "criados": oc.get(oid, 0), "finalizados": ofi.get(oid, 0),
+             "aceitos": oa.get(oid, 0), "perdidos": lost_by.get(oid, 0)}
+        if any(v[x] for x in ("criados", "finalizados", "aceitos", "perdidos")):
+            por_vendedor.append(v)
     por_vendedor.sort(key=lambda x: -x["criados"])
 
     return {"kpis": k, "criados": split(created), "finalizados": split(closed),
-            "aceitos": split(aceitos), "perdidos": split(perdidos),
-            "perdidos_motivo": perdidos_motivo, "por_vendedor": por_vendedor}
+            "aceitos": split(aceitos), "perdidos_motivo": perdidos_motivo,
+            "por_vendedor": por_vendedor}
 
 
-def build_html(d, a):
+def build_html(d, a, brand="embapi"):
+    bp = BRANDS.get(brand, BRANDS["embapi"])
     ref = f"{MESES[a.month]} / {a.year}"
     k, ac = d["kpis"], d["aceitos"]["total"]
-    lbl = {"META": "Instagram / Facebook (tráfego pago)", "SITE": "embapi.com.br",
+    lbl = {"META": "Instagram / Facebook (tráfego pago)", "META (INSTA/FACE)": "Instagram / Facebook",
            "PROSPECÇÃO INTERNA": "time interno", "PROSPECÇÃO REPRESENTANTE": "representantes"}
-    ors = sorted(set(list(d["criados"]["tag"]) + list(d["finalizados"]["tag"]) +
-                     list(d["aceitos"]["tag"]) + list(d["perdidos"]["tag"])),
-                 key=lambda t: -d["criados"]["tag"].get(t, 0))
-    tot = d["criados"]["total"] or 1
-    mx = max([d["criados"]["tag"].get(t, 0) for t in ors] + [1])
+    og = d.get("origem", d["criados"])
+    ors = sorted(set(list(og["tag"]) + list(d["finalizados"]["tag"]) +
+                     list(d["aceitos"]["tag"])),
+                 key=lambda t: -og["tag"].get(t, 0))
+    tot = og["total"] or 1
+    mx = max([og["tag"].get(t, 0) for t in ors] + [1])
     rows = ""
     for t in ors:
-        cr = d["criados"]["tag"].get(t, 0); fi = d["finalizados"]["tag"].get(t, 0)
-        ae = d["aceitos"]["tag"].get(t, 0); pe = d["perdidos"]["tag"].get(t, 0)
+        cr = og["tag"].get(t, 0); fi = d["finalizados"]["tag"].get(t, 0)
+        ae = d["aceitos"]["tag"].get(t, 0)
         de = lbl.get(t, "")
         rows += (f'<tr><td class="o"><div class="on"><span class="sw"></span><div><div class="t">{t}</div>'
                  f'{f"<div class=d>{de}</div>" if de else ""}</div></div></td><td>{cr}</td>'
                  f'<td class="{"z" if not fi else ""}">{fi}</td><td class="{"g" if ae else "z"}">{ae}</td>'
-                 f'<td class="{"b" if pe else "z"}">{pe}</td>'
                  f'<td class="bc"><span class="bar" style="width:{round(cr/mx*100)}%"></span>'
                  f'<span class="pct">{round(cr/tot*100)}%</span></td></tr>')
-    sem = d["criados"]["sem"] + d["criados"]["nc"]
+    sem = og["sem"] + og["nc"]
     rows += (f'<tr class="st"><td class="o"><div class="on"><span class="sw" style="background:#8C8071;border:0"></span>'
              f'<div class="t">Sem tag / não classif.</div></div></td><td>{sem}</td>'
              f'<td class="z">{d["finalizados"]["sem"]+d["finalizados"]["nc"]}</td>'
-             f'<td class="z">{d["aceitos"]["sem"]+d["aceitos"]["nc"]}</td>'
-             f'<td class="z">{d["perdidos"]["sem"]+d["perdidos"]["nc"]}</td><td></td></tr>')
+             f'<td class="z">{d["aceitos"]["sem"]+d["aceitos"]["nc"]}</td><td></td></tr>')
+    ot = d.get("origem_totais", {"c": k["criados"], "f": k["finalizados"], "a": ac})
     rows += (f'<tr class="tot"><td class="o"><div class="on"><span class="sw" style="background:transparent;border:0"></span>'
-             f'<div class="t">TOTAL</div></div></td><td>{k["criados"]}</td><td>{k["finalizados"]}</td>'
-             f'<td>{ac}</td><td>{k["perdidos"]}</td><td></td></tr>')
+             f'<div class="t">TOTAL</div></div></td><td>{ot["c"]}</td><td>{ot["f"]}</td>'
+             f'<td>{ot["a"]}</td><td></td></tr>')
     mot = d.get("perdidos_motivo", {})
     mtot = sum(mot.values()) or 1
     mmax = max(list(mot.values()) + [1])
@@ -243,8 +258,19 @@ def build_html(d, a):
         fun += (f'<div class="fr flose"><div class="fn">{rz}</div><div class="ft">'
                 f'<div class="ff" style="width:{max(n / mmax * 100, 1.5)}%"></div></div>'
                 f'<div class="fv">{n} <span style="color:#8C8071;font-weight:600">{round(n / mtot * 100)}%</span></div></div>')
-    mp = round(d["criados"]["tag"].get("META", 0) / tot * 100)
-    ap = round(d["aceitos"]["tag"].get("PROSPECÇÃO INTERNA", 0) + d["aceitos"]["tag"].get("PROSPECÇÃO REPRESENTANTE", 0))
+    if d.get("insight_html"):
+        insight = d["insight_html"]
+    else:
+        semc = og["sem"] + og["nc"]
+        sem_pct = round(semc / tot * 100)
+        _top = list(og["tag"].items())
+        _tn, _tv = (_top[0] if _top else ("—", 0))
+        _tp = round(_tv / tot * 100)
+        if sem_pct >= 40:
+            insight = (f'<span class="big">{sem_pct}%</span> dos contatos criados estão <b>sem tag de origem</b>. '
+                       f'Entre os marcados, <b>{_tn}</b> lidera ({_tv}).')
+        else:
+            insight = f'<span class="big">{_tp}%</span> dos contatos criados vieram de <b>{_tn}</b>. Aceitos no mês: <b>{ac}</b>.'
     vrows = ""
     for v in d.get("por_vendedor", []):
         vrows += (f'<tr><td class="o"><div class="on"><div class="t">{v["nome"]}</div></div></td>'
@@ -254,7 +280,7 @@ def build_html(d, a):
     vrows += (f'<tr class="tot"><td class="o"><div class="on"><div class="t">TOTAL</div></div></td>'
               f'<td>{k["criados"]}</td><td>{k["finalizados"]}</td><td>{ac}</td><td>{k["perdidos"]}</td></tr>')
     return f"""<!doctype html><html lang=pt-BR><head><meta charset=utf-8><title>Indicador CRM Embapi — {ref}</title><style>
-:root{{--bg:#FFFFFF;--s:#FFFFFF;--s2:#F6F2EA;--ink:#23201C;--soft:#5A5348;--mut:#948B7D;--ln:#ECE6DA;--lns:#DDD5C6;--ac:#E78700;--in:#0E8A86;--gd:#5E8E1E;--bd:#C0392B;--aw:#FDF0DA}}
+:root{{--bg:#FFFFFF;--s:#FFFFFF;--s2:{bp['s2']};--ink:{bp['ink']};--soft:#5A5348;--mut:#948B7D;--ln:{bp['ln']};--lns:{bp['lns']};--ac:{bp['ac']};--in:{bp['dark']};--gd:#5E8E1E;--bd:#C0392B;--aw:{bp['aw']}}}
 *{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.4}}
 .w{{width:1280px;margin:0 auto;padding:26px 30px 30px}}
 .hd{{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid var(--ac);padding-bottom:12px;margin-bottom:14px;gap:20px}}
@@ -277,16 +303,16 @@ tr.tot td{{font-weight:700;background:var(--s2)}}tr.st td{{color:var(--mut)}}
 .fr{{display:grid;grid-template-columns:158px 1fr 70px;align-items:center;gap:10px;margin-bottom:7px}}.fn{{font-size:11.5px;font-weight:600;color:var(--soft);line-height:1.15}}
 .ft{{background:var(--s2);border-radius:5px;height:20px;overflow:hidden;border:1px solid var(--ln)}}.ff{{height:100%;background:var(--bd);opacity:.9}}.fv{{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:13px}}
 </style></head><body><div class="w">
-<div class="hd"><div><div class="eb">Indicador mensal · CRM SMBOT · board #{BOARD_ID}</div><h1>Contatos do CRM — Embapi · {ref}</h1></div>
+<div class="hd"><div><div class="eb">Indicador mensal · CRM SMBOT · board #{bp['board']}</div><h1>Contatos do CRM — {bp['label']} · {ref}</h1></div>
 <div class="pills"><span class="pill"><span class="dot"></span> Canal: <b>100% WhatsApp</b></span><span class="pill"><span class="sw2"></span> Origem = <b>tag amarela</b></span></div></div>
-<div class="ins"><span class="big">{mp}%</span> dos contatos criados vieram do <b>META</b> (tráfego pago Instagram/Facebook). Dos <b>{ac}</b> aceitos, a <b>Prospecção fez {ap}</b> — converte mais por contato.</div>
+<div class="ins">{insight}</div>
 <div class="grid2">
-<div><div class="h2">Por vendedor</div><table><thead><tr><th>Vendedor</th><th>Criados</th><th>Final.</th><th>Aceitos</th><th>Perdidos</th></tr></thead><tbody>{vrows}</tbody></table></div>
-<div><div class="h2">Perdidos — por que foi perdido</div>{fun}<p class="nt">Total oficial de perdidos: <b>{k['perdidos']}</b> · distribuição sobre {mtot} contatos com motivo.</p></div>
+<div><div class="h2">{d.get("vend_titulo","Por vendedor")}</div><table><thead><tr><th>Vendedor</th><th>Criados</th><th>Final.</th><th>Aceitos</th><th>Perdidos</th></tr></thead><tbody>{vrows}</tbody></table></div>
+<div><div class="h2">Perdidos — por que foi perdido</div>{fun}<p class="nt">Total de perdidos: <b>{k['perdidos']}</b> — quebra por motivo direto do CRM (por data de perda).</p></div>
 </div>
-<div class="h2" style="margin-top:16px">Por origem — tags amarelas</div>
-<table><thead><tr><th>Origem</th><th>Criados</th><th>Final.</th><th>Aceitos*</th><th>Perdidos*</th><th style="width:24%">% dos criados</th></tr></thead><tbody>{rows}</tbody></table>
-<p class="nt">* Aceitos e Perdidos por origem são aproximados (a API não expõe a data exata por card); os totais oficiais estão corretos.</p>
+<div class="h2" style="margin-top:16px">{d.get("origem_titulo","Por origem — tags amarelas")}</div>
+<table><thead><tr><th>Origem</th><th>Criados</th><th>Final.</th><th>Aceitos*</th><th style="width:26%">% do total</th></tr></thead><tbody>{rows}</tbody></table>
+<p class="nt">{d.get("origem_nota","* Aceitos por origem é aproximado (cards que entraram em Pedido Efetivado). Criados e Finalizados por origem vêm das tags do atendimento.")}</p>
 </div></body></html>"""
 
 
