@@ -152,9 +152,10 @@ def collect(a, b):
     k = kpis(a, b)
     created = cards(cf=df, cu=du)
     closed = cards(clf=df, clu=du)
-    lc, lua = [], {}
+    lc, lua, pipe_counts = [], {}, {}
     for lid in LISTS:
         cs = list_cards(lid)
+        pipe_counts[lid] = len(cs)
         lc += cs
         for c in cs:
             lua[c["id"]] = c.get("listUpdatedAt")
@@ -183,7 +184,8 @@ def collect(a, b):
                 "sem": sem, "nc": nc}
 
     inm = lambda ms: ms is not None and s <= ms < e
-    aceitos = [c for c in list_cards(LIST_EFETIVADO) if inm(c.get("listUpdatedAt"))]
+    efetivado_cards = list_cards(LIST_EFETIVADO)
+    aceitos = [c for c in efetivado_cards if inm(c.get("listUpdatedAt"))]
 
     # Perdidos OFICIAL (por data de perda) via dashboard accept/reasons — soma bate com o KPI "lost".
     qp = {"crmBoardId": BOARD_ID, "dateFrom": df, "dateFromAux": aux_from(a),
@@ -214,14 +216,47 @@ def collect(a, b):
             por_vendedor.append(v)
     por_vendedor.sort(key=lambda x: -x["criados"])
 
+    # ---- Blocos padrão PPT: pipeline, comparativo, quantidade geral (só atendente) ----
+    NOMES_LISTA = {44298: "Novos (LEAD)", 44299: "Em contato", 44300: "Lead qualificado",
+                   44301: "Orçamento enviado", 44302: "Pedido efetivado", 44306: "Lead desqualificado"}
+    pipeline = [{"etapa": NOMES_LISTA.get(lid, str(lid)), "qtd": pipe_counts.get(lid, 0)} for lid in LISTS]
+
+    # mês anterior (para comparativo e quantidade geral)
+    pa = a.replace(day=1) - dt.timedelta(days=1)
+    prev_a, prev_b = pa.replace(day=1), pa
+    pdf, pdu = br(prev_a), br(prev_b)
+    kprev = kpis(prev_a, prev_b)
+    sp, ep = ms_range(prev_a, prev_b)
+    inmp = lambda ms: ms is not None and sp <= ms < ep
+    aceitos_prev = len([c for c in efetivado_cards if inmp(c.get("listUpdatedAt"))])
+    comparativo = {"ant_label": MESES[prev_a.month], "atual_label": MESES[a.month], "linhas": [
+        {"etapa": "Contatos criados", "ant": kprev["criados"], "atual": k["criados"]},
+        {"etapa": "Finalizados", "ant": kprev["finalizados"], "atual": k["finalizados"]},
+        {"etapa": "Aceitos (Pedido Efetivado)", "ant": aceitos_prev, "atual": len(aceitos)},
+        {"etapa": "Perdidos", "ant": kprev["perdidos"], "atual": k["perdidos"]},
+    ]}
+
+    created_prev = cards(cf=pdf, cu=pdu)
+    oc_prev = by_owner(created_prev)
+    qg_linhas = []
+    for oid in set(list(oc) + list(oc_prev)):
+        if not oid:
+            continue
+        ant, atual = oc_prev.get(oid, 0), oc.get(oid, 0)
+        if ant or atual:
+            qg_linhas.append({"atendente": users.get(oid, f"#{oid}"), "ant": ant, "atual": atual})
+    qg_linhas.sort(key=lambda x: -(x["ant"] + x["atual"]))
+    quantidade_geral = {"ant_label": MESES[prev_a.month], "atual_label": MESES[a.month], "linhas": qg_linhas}
+
     return {"kpis": k, "criados": split(created), "finalizados": split(closed),
             "aceitos": split(aceitos), "perdidos_motivo": perdidos_motivo,
-            "por_vendedor": por_vendedor}
+            "por_vendedor": por_vendedor,
+            "pipeline": pipeline, "comparativo": comparativo, "quantidade_geral": quantidade_geral}
 
 
 def build_html(d, a, brand="embapi"):
     bp = BRANDS.get(brand, BRANDS["embapi"])
-    ref = f"{MESES[a.month]} / {a.year}"
+    ref = f"{MESES[a.month]} / {a.year}" + d.get("ref_extra", "")
     k, ac = d["kpis"], d["aceitos"]["total"]
     lbl = {"META": "Instagram / Facebook (tráfego pago)", "META (INSTA/FACE)": "Instagram / Facebook",
            "PROSPECÇÃO INTERNA": "time interno", "PROSPECÇÃO REPRESENTANTE": "representantes"}
@@ -271,6 +306,7 @@ def build_html(d, a, brand="embapi"):
                        f'Entre os marcados, <b>{_tn}</b> lidera ({_tv}).')
         else:
             insight = f'<span class="big">{_tp}%</span> dos contatos criados vieram de <b>{_tn}</b>. Aceitos no mês: <b>{ac}</b>.'
+    pnota = d.get("perdidos_nota") or f"Total oficial de perdidos: <b>{k['perdidos']}</b> · distribuição sobre {mtot} contatos com motivo."
     vrows = ""
     for v in d.get("por_vendedor", []):
         vrows += (f'<tr><td class="o"><div class="on"><div class="t">{v["nome"]}</div></div></td>'
@@ -279,6 +315,62 @@ def build_html(d, a, brand="embapi"):
                   f'<td class="{"b" if v["perdidos"] else "z"}">{v["perdidos"]}</td></tr>')
     vrows += (f'<tr class="tot"><td class="o"><div class="on"><div class="t">TOTAL</div></div></td>'
               f'<td>{k["criados"]}</td><td>{k["finalizados"]}</td><td>{ac}</td><td>{k["perdidos"]}</td></tr>')
+    anms = d.get("aceitos_nomes", [])
+    anames = "".join(f'<span class="ach"><b>{x["nome"]}</b><span class="av">{x["vendedor"]}</span></span>' for x in anms)
+    anames_sec = (f'<div class="h2" style="margin-top:16px">Aceitos — o que foi fechado ({len(anms)})</div>'
+                  f'<div class="anames">{anames}</div>') if anms else ""
+
+    # ---- Blocos padrão PPT (KPI cards, pipeline, comparativo, quantidade geral) ----
+    def _card(lbl, val, cls): return f'<div class="kpi {cls}"><div class="kn">{val}</div><div class="kl">{lbl}</div></div>'
+    cards_html = ('<div class="kpis">' + _card("Atendimentos criados", k["criados"], "c-blue")
+                  + _card("Finalizados", k["finalizados"], "c-dark") + _card("Aceitos", ac, "c-green")
+                  + _card("Perdidos", k["perdidos"], "c-red") + '</div>')
+    pipe_html = ""
+    pipe = d.get("pipeline")
+    if pipe:
+        ptot = sum(x["qtd"] for x in pipe) or 1
+        prows = "".join(f'<tr><td class="o"><div class="on"><div class="t">{x["etapa"]}</div></div></td>'
+                        f'<td>{x["qtd"]}</td><td class="pcell">{x["qtd"]/ptot*100:.1f}%</td></tr>' for x in pipe)
+        prows += (f'<tr class="tot"><td class="o"><div class="on"><div class="t">TOTAL</div></div></td>'
+                  f'<td>{ptot}</td><td>100,0%</td></tr>')
+        pipe_html = (f'<div class="h2" style="margin-top:16px">Pipeline — distribuição por etapa</div>'
+                     f'<table><thead><tr><th>Etapa</th><th>Qtd.</th><th style="width:24%">% do pipeline</th></tr></thead>'
+                     f'<tbody>{prows}</tbody></table>')
+    comp_html = ""
+    comp = d.get("comparativo")
+    if comp:
+        la, lb = comp.get("ant_label", "Mês anterior"), comp.get("atual_label", "Mês atual")
+        crows = ""
+        for x in comp.get("linhas", []):
+            an, at = x["ant"], x["atual"]
+            var = (at - an) / an * 100 if an else (100.0 if at else 0.0)
+            vs = (f'+{var:.0f}%' if var >= 0 else f'{var:.0f}%'); vcls = "g" if var >= 0 else "b"
+            crows += (f'<tr><td class="o"><div class="on"><div class="t">{x["etapa"]}</div></div></td>'
+                      f'<td>{an}</td><td>{at}</td><td class="{vcls}">{vs}</td></tr>')
+        comp_html = (f'<div class="h2" style="margin-top:16px">Comparativo — {la} x {lb}</div>'
+                     f'<table><thead><tr><th>Etapa</th><th>{la}</th><th>{lb}</th>'
+                     f'<th style="width:18%">Variação</th></tr></thead><tbody>{crows}</tbody></table>')
+    qg_html = ""
+    qg = d.get("quantidade_geral")
+    if qg:
+        la, lb = qg.get("ant_label", "Mês ant."), qg.get("atual_label", "Mês atual")
+        linhas = qg.get("linhas", [])
+        has_setor = any(l.get("setor") for l in linhas)
+        gta = sum(l["ant"] for l in linhas); gtb = sum(l["atual"] for l in linhas); gtt = (gta + gtb) or 1
+        qrows = ""
+        for l in linhas:
+            tt = l["ant"] + l["atual"]
+            setor = (f'<td class="o">{l.get("setor","")}</td>' if has_setor else "")
+            qrows += (f'<tr><td class="o"><div class="on"><div class="t">{l["atendente"]}</div></div></td>{setor}'
+                      f'<td>{l["ant"]}</td><td>{l["atual"]}</td><td style="font-weight:700">{tt}</td>'
+                      f'<td class="pcell">{round(tt/gtt*100)}%</td></tr>')
+        setor_h = "<th>Setor</th>" if has_setor else ""
+        qrows += (f'<tr class="tot"><td class="o"><div class="on"><div class="t">TOTAL</div></div></td>'
+                  f'{("<td></td>" if has_setor else "")}<td>{gta}</td><td>{gtb}</td><td>{gta+gtb}</td><td></td></tr>')
+        qg_html = (f'<div class="h2" style="margin-top:16px">Quantidade geral de atendimentos</div>'
+                   f'<table><thead><tr><th>Atendente</th>{setor_h}<th>{la}</th><th>{lb}</th>'
+                   f'<th>Total</th><th style="width:12%">%</th></tr></thead><tbody>{qrows}</tbody></table>')
+
     return f"""<!doctype html><html lang=pt-BR><head><meta charset=utf-8><title>Indicador CRM Embapi — {ref}</title><style>
 :root{{--bg:#FFFFFF;--s:#FFFFFF;--s2:{bp['s2']};--ink:{bp['ink']};--soft:#5A5348;--mut:#948B7D;--ln:{bp['ln']};--lns:{bp['lns']};--ac:{bp['ac']};--in:{bp['dark']};--gd:#5E8E1E;--bd:#C0392B;--aw:{bp['aw']}}}
 *{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;line-height:1.4}}
@@ -290,6 +382,11 @@ h1{{font-size:25px;margin:0;font-weight:700;letter-spacing:-.02em}}
 .pill{{display:inline-flex;align-items:center;gap:7px;background:var(--s2);border:1px solid var(--ln);border-radius:999px;padding:5px 12px;font-size:12px;color:var(--soft);white-space:nowrap}}.pill b{{color:var(--ink)}}
 .dot{{width:7px;height:7px;border-radius:50%;background:var(--gd)}}.sw2{{width:10px;height:10px;border-radius:2px;background:#fff833;display:inline-block}}
 .ins{{background:var(--aw);border:1px solid var(--lns);border-radius:10px;padding:9px 16px;font-size:13px;color:var(--soft);margin-bottom:16px}}.ins b{{color:var(--ink)}}.ins .big{{color:var(--ac);font-weight:800;font-size:15px}}
+.kpis{{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}}
+.kpi{{background:var(--s2);border:1px solid var(--ln);border-radius:10px;padding:12px 16px;border-left:5px solid var(--mut)}}
+.kpi.c-blue{{border-left-color:#2E6BB8}}.kpi.c-dark{{border-left-color:var(--in)}}.kpi.c-green{{border-left-color:var(--gd)}}.kpi.c-red{{border-left-color:var(--bd)}}
+.kpi .kn{{font-size:26px;font-weight:800;letter-spacing:-.02em}}.kpi .kl{{font-size:11.5px;color:var(--mut);font-weight:600;margin-top:2px}}
+.pcell{{color:var(--soft);font-weight:600}}
 .grid2{{display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:start}}
 .h2{{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--mut);font-weight:700;margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--ln)}}
 table{{width:100%;border-collapse:collapse}}
@@ -300,12 +397,15 @@ tbody td{{padding:7px 10px;border-bottom:1px solid var(--ln);font-variant-numeri
 .bc .bar{{display:inline-block;height:6px;border-radius:3px;background:var(--ac);vertical-align:middle;margin-right:8px}}.pct{{font-size:11.5px;color:var(--mut)}}.z{{color:var(--mut)}}.g{{color:var(--gd);font-weight:600}}.b{{color:var(--bd);font-weight:600}}
 tr.tot td{{font-weight:700;background:var(--s2)}}tr.st td{{color:var(--mut)}}
 .nt{{font-size:11px;color:var(--mut);margin:8px 0 0}}.nt b{{color:var(--soft)}}
+.anames{{display:flex;flex-wrap:wrap;gap:8px}}.ach{{background:var(--s2);border:1px solid var(--ln);border-radius:8px;padding:6px 12px;font-size:12.5px;color:var(--soft)}}.ach b{{color:var(--ink);font-weight:600}}.av{{color:var(--ac);font-weight:600;margin-left:6px}}
 .fr{{display:grid;grid-template-columns:158px 1fr 70px;align-items:center;gap:10px;margin-bottom:7px}}.fn{{font-size:11.5px;font-weight:600;color:var(--soft);line-height:1.15}}
 .ft{{background:var(--s2);border-radius:5px;height:20px;overflow:hidden;border:1px solid var(--ln)}}.ff{{height:100%;background:var(--bd);opacity:.9}}.fv{{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:13px}}
 </style></head><body><div class="w">
 <div class="hd"><div><div class="eb">Indicador mensal · CRM SMBOT · board #{bp['board']}</div><h1>Contatos do CRM — {bp['label']} · {ref}</h1></div>
 <div class="pills"><span class="pill"><span class="dot"></span> Canal: <b>100% WhatsApp</b></span><span class="pill"><span class="sw2"></span> Origem = <b>tag amarela</b></span></div></div>
 <div class="ins">{insight}</div>
+{cards_html}
+{pipe_html}
 <div class="grid2">
 <div><div class="h2">{d.get("vend_titulo","Por vendedor")}</div><table><thead><tr><th>Vendedor</th><th>Criados</th><th>Final.</th><th>Aceitos</th><th>Perdidos</th></tr></thead><tbody>{vrows}</tbody></table></div>
 <div><div class="h2">Perdidos — por que foi perdido</div>{fun}<p class="nt">Total de perdidos: <b>{k['perdidos']}</b> — quebra por motivo direto do CRM (por data de perda).</p></div>
@@ -313,6 +413,9 @@ tr.tot td{{font-weight:700;background:var(--s2)}}tr.st td{{color:var(--mut)}}
 <div class="h2" style="margin-top:16px">{d.get("origem_titulo","Por origem — tags amarelas")}</div>
 <table><thead><tr><th>Origem</th><th>Criados</th><th>Final.</th><th>Aceitos*</th><th style="width:26%">% do total</th></tr></thead><tbody>{rows}</tbody></table>
 <p class="nt">{d.get("origem_nota","* Aceitos por origem é aproximado (cards que entraram em Pedido Efetivado). Criados e Finalizados por origem vêm das tags do atendimento.")}</p>
+{comp_html}
+{qg_html}
+{anames_sec}
 </div></body></html>"""
 
 
@@ -340,5 +443,60 @@ def main():
     print(f"Origem dos criados: {top}")
 
 
+def _supa(su, sk, method, path, data=None, ctype=None):
+    u = su.rstrip("/") + "/storage/v1/object/relatorio/" + path
+    h = {"Authorization": "Bearer " + sk, "apikey": sk}
+    if method == "GET":
+        return requests.get(u, headers=h, timeout=45)
+    h["x-upsert"] = "true"; h["Cache-Control"] = "no-cache, max-age=0"
+    if ctype:
+        h["Content-Type"] = ctype
+    return requests.post(u, headers=h, data=data, timeout=90)
+
+
+def gerar_semanal():
+    """Modo SEMANAL: gera o relatório do MÊS CORRENTE (acumulado) e sobe pra Supabase
+    (HTML por mês + índice), que a Central lê. Env: SMBOT_TOKEN, SUPABASE_URL, SUPABASE_KEY."""
+    import json
+    su, sk = os.environ.get("SUPABASE_URL"), os.environ.get("SUPABASE_KEY")
+    if not TOKEN or "COLE_SEU_TOKEN" in TOKEN:
+        print("ERRO: SMBOT_TOKEN não configurado.", file=sys.stderr); sys.exit(2)
+    if not su or not sk:
+        print("ERRO: SUPABASE_URL/SUPABASE_KEY não configurados.", file=sys.stderr); sys.exit(2)
+    ref_env = os.environ.get("REF_MONTH")
+    hoje = dt.datetime.now(BRT).date()
+    if ref_env:
+        a, b = month_range(ref_env)
+    else:
+        a, b = hoje.replace(day=1), hoje  # mês corrente até hoje (acumulado)
+    d = collect(a, b)
+    if b.day < calendar.monthrange(a.year, a.month)[1]:
+        d["ref_extra"] = f" · parcial até {b.day:02d}/{a.month:02d}"
+    html = build_html(d, a)
+    mk = f"{a.year}-{a.month:02d}"
+    fname = f"indicador_embapi_{mk}.html"
+    r = _supa(su, sk, "POST", fname, html.encode("utf-8"), "text/html; charset=utf-8")
+    print(f"upload {fname}: HTTP {r.status_code}")
+    idx = {"empresa": "Embapi", "meses": []}
+    try:
+        g = _supa(su, sk, "GET", "indicador_embapi_index.json")
+        if g.status_code == 200:
+            idx = g.json(); idx.setdefault("meses", [])
+    except Exception as ex:
+        print("índice atual não lido (ok se 1ª vez):", ex)
+    idx["meses"] = [m for m in idx.get("meses", []) if m.get("key") != mk]
+    idx["meses"].append({"key": mk, "label": f"{MESES[a.month]}/{a.year}", "file": fname})
+    idx["meses"].sort(key=lambda m: m["key"], reverse=True)
+    idx["atualizado"] = hoje.isoformat()
+    ri = _supa(su, sk, "POST", "indicador_embapi_index.json",
+               json.dumps(idx, ensure_ascii=False).encode("utf-8"), "application/json")
+    k = d["kpis"]
+    print(f"index: HTTP {ri.status_code} — {MESES[a.month]}/{a.year} | Criados {k['criados']} "
+          f"Finalizados {k['finalizados']} Aceitos {d['aceitos']['total']} Perdidos {k['perdidos']}")
+
+
 if __name__ == "__main__":
-    main()
+    if os.environ.get("MODO") == "semanal":
+        gerar_semanal()
+    else:
+        main()
