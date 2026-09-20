@@ -317,7 +317,7 @@ def build_html(d, a, brand="embapi"):
               f'<td>{k["criados"]}</td><td>{k["finalizados"]}</td><td>{ac}</td><td>{k["perdidos"]}</td></tr>')
     anms = d.get("aceitos_nomes", [])
     anames = "".join(f'<span class="ach"><b>{x["nome"]}</b><span class="av">{x["vendedor"]}</span></span>' for x in anms)
-    anames_sec = (f'<div class="h2" style="margin-top:16px">Aceitos — o que foi fechado ({len(anms)})</div>'
+    anames_sec = (f'<div class="h2" style="margin-top:28px">Aceitos — o que foi fechado ({len(anms)})</div>'
                   f'<div class="anames">{anames}</div>') if anms else ""
 
     # ---- Blocos padrão PPT (KPI cards, pipeline, comparativo, quantidade geral) ----
@@ -333,7 +333,7 @@ def build_html(d, a, brand="embapi"):
                         f'<td>{x["qtd"]}</td><td class="pcell">{x["qtd"]/ptot*100:.1f}%</td></tr>' for x in pipe)
         prows += (f'<tr class="tot"><td class="o"><div class="on"><div class="t">TOTAL</div></div></td>'
                   f'<td>{ptot}</td><td>100,0%</td></tr>')
-        pipe_html = (f'<div class="h2" style="margin-top:16px">Pipeline — distribuição por etapa</div>'
+        pipe_html = (f'<div class="h2" style="margin-top:28px">Pipeline — distribuição por etapa</div>'
                      f'<table><thead><tr><th>Etapa</th><th>Qtd.</th><th style="width:24%">% do pipeline</th></tr></thead>'
                      f'<tbody>{prows}</tbody></table>')
     comp_html = ""
@@ -344,7 +344,7 @@ def build_html(d, a, brand="embapi"):
         for x in comp.get("linhas", []):
             crows += (f'<tr><td class="o"><div class="on"><div class="t">{x["etapa"]}</div></div></td>'
                       f'<td>{x["ant"]}</td><td>{x["atual"]}</td></tr>')
-        comp_html = (f'<div class="h2" style="margin-top:16px">Comparativo com o mês anterior</div>'
+        comp_html = (f'<div class="h2" style="margin-top:28px">Comparativo com o mês anterior</div>'
                      f'<table><thead><tr><th>Etapa</th><th>{la}</th><th>{lb}</th>'
                      f'</tr></thead><tbody>{crows}</tbody></table>')
     qg_html = ""  # tabela "Quantidade geral de atendimentos" removida (redundante com "por vendedor")
@@ -368,7 +368,7 @@ h1{{font-size:25px;margin:0;font-weight:700;letter-spacing:-.02em}}
 .sub{{font-size:13px;color:var(--soft);margin-top:3px;font-weight:500}}
 .twrap{{overflow-x:auto}}.tt{{font-weight:700}}
 .grid2{{display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:start}}
-.h2{{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--mut);font-weight:700;margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--ln)}}
+.h2{{font-size:14px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink);font-weight:800;margin:28px 0 12px;padding-bottom:8px;border-bottom:2px solid var(--ac)}}
 table{{width:100%;border-collapse:collapse}}
 thead th{{text-align:right;font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);font-weight:700;padding:6px 10px;border-bottom:1px solid var(--lns)}}thead th:first-child{{text-align:left}}
 tbody td{{padding:7px 10px;border-bottom:1px solid var(--ln);font-variant-numeric:tabular-nums;text-align:right;font-size:13.5px}}
@@ -390,7 +390,7 @@ tr.tot td{{font-weight:700;background:var(--s2)}}tr.st td{{color:var(--mut)}}
 <div><div class="h2">{d.get("vend_titulo","Por vendedor")}</div><table><thead><tr><th>Vendedor</th><th>Criados</th><th>Final.</th><th>Aceitos</th><th>Perdidos</th></tr></thead><tbody>{vrows}</tbody></table></div>
 <div><div class="h2">Perdidos — por que foi perdido</div>{fun}<p class="nt">Total de perdidos: <b>{k['perdidos']}</b> — quebra por motivo direto do CRM (por data de perda).</p></div>
 </div>
-<div class="h2" style="margin-top:16px">{d.get("origem_titulo","Por origem — tags amarelas")}</div>
+<div class="h2" style="margin-top:28px">{d.get("origem_titulo","Por origem — tags amarelas")}</div>
 <table><thead><tr><th>Origem</th><th>Criados</th><th>Final.</th><th>Aceitos*</th><th style="width:26%">% do total</th></tr></thead><tbody>{rows}</tbody></table>
 <p class="nt">{d.get("origem_nota","* Aceitos por origem é aproximado (cards que entraram em Pedido Efetivado). Criados e Finalizados por origem vêm das tags do atendimento.")}</p>
 {comp_html}
