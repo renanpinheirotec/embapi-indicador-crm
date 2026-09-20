@@ -387,6 +387,8 @@ h1{{font-size:25px;margin:0;font-weight:700;letter-spacing:-.02em}}
 .kpi.c-blue{{border-left-color:#2E6BB8}}.kpi.c-dark{{border-left-color:var(--in)}}.kpi.c-green{{border-left-color:var(--gd)}}.kpi.c-red{{border-left-color:var(--bd)}}
 .kpi .kn{{font-size:26px;font-weight:800;letter-spacing:-.02em}}.kpi .kl{{font-size:11.5px;color:var(--mut);font-weight:600;margin-top:2px}}
 .pcell{{color:var(--soft);font-weight:600}}
+.sub{{font-size:13px;color:var(--soft);margin-top:3px;font-weight:500}}
+.twrap{{overflow-x:auto}}.tt{{font-weight:700}}
 .grid2{{display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:start}}
 .h2{{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--mut);font-weight:700;margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--ln)}}
 table{{width:100%;border-collapse:collapse}}
@@ -401,7 +403,7 @@ tr.tot td{{font-weight:700;background:var(--s2)}}tr.st td{{color:var(--mut)}}
 .fr{{display:grid;grid-template-columns:158px 1fr 70px;align-items:center;gap:10px;margin-bottom:7px}}.fn{{font-size:11.5px;font-weight:600;color:var(--soft);line-height:1.15}}
 .ft{{background:var(--s2);border-radius:5px;height:20px;overflow:hidden;border:1px solid var(--ln)}}.ff{{height:100%;background:var(--bd);opacity:.9}}.fv{{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:13px}}
 </style></head><body><div class="w">
-<div class="hd"><div><div class="eb">Indicador mensal · CRM SMBOT · board #{bp['board']}</div><h1>Contatos do CRM — {bp['label']} · {ref}</h1></div>
+<div class="hd"><div><div class="eb">Indicador mensal · CRM SMBOT · board #{bp['board']}</div><h1>Contatos do CRM — {bp['label']} · {ref}</h1><div class="sub">Visão executiva consolidada do CRM</div></div>
 <div class="pills"><span class="pill"><span class="dot"></span> Canal: <b>100% WhatsApp</b></span><span class="pill"><span class="sw2"></span> Origem = <b>tag amarela</b></span></div></div>
 <div class="ins">{insight}</div>
 {cards_html}
