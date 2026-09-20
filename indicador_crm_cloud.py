@@ -342,34 +342,29 @@ def build_html(d, a, brand="embapi"):
         la, lb = comp.get("ant_label", "Mês anterior"), comp.get("atual_label", "Mês atual")
         crows = ""
         for x in comp.get("linhas", []):
-            an, at = x["ant"], x["atual"]
-            var = (at - an) / an * 100 if an else (100.0 if at else 0.0)
-            vs = (f'+{var:.0f}%' if var >= 0 else f'{var:.0f}%'); vcls = "g" if var >= 0 else "b"
             crows += (f'<tr><td class="o"><div class="on"><div class="t">{x["etapa"]}</div></div></td>'
-                      f'<td>{an}</td><td>{at}</td><td class="{vcls}">{vs}</td></tr>')
-        comp_html = (f'<div class="h2" style="margin-top:16px">Comparativo — {la} x {lb}</div>'
+                      f'<td>{x["ant"]}</td><td>{x["atual"]}</td></tr>')
+        comp_html = (f'<div class="h2" style="margin-top:16px">Comparativo com o mês anterior</div>'
                      f'<table><thead><tr><th>Etapa</th><th>{la}</th><th>{lb}</th>'
-                     f'<th style="width:18%">Variação</th></tr></thead><tbody>{crows}</tbody></table>')
+                     f'</tr></thead><tbody>{crows}</tbody></table>')
     qg_html = ""
     qg = d.get("quantidade_geral")
     if qg:
         la, lb = qg.get("ant_label", "Mês ant."), qg.get("atual_label", "Mês atual")
         linhas = qg.get("linhas", [])
         has_setor = any(l.get("setor") for l in linhas)
-        gta = sum(l["ant"] for l in linhas); gtb = sum(l["atual"] for l in linhas); gtt = (gta + gtb) or 1
+        gta = sum(l["ant"] for l in linhas); gtb = sum(l["atual"] for l in linhas)
         qrows = ""
         for l in linhas:
-            tt = l["ant"] + l["atual"]
             setor = (f'<td class="o">{l.get("setor","")}</td>' if has_setor else "")
             qrows += (f'<tr><td class="o"><div class="on"><div class="t">{l["atendente"]}</div></div></td>{setor}'
-                      f'<td>{l["ant"]}</td><td>{l["atual"]}</td><td style="font-weight:700">{tt}</td>'
-                      f'<td class="pcell">{round(tt/gtt*100)}%</td></tr>')
+                      f'<td>{l["ant"]}</td><td>{l["atual"]}</td></tr>')
         setor_h = "<th>Setor</th>" if has_setor else ""
         qrows += (f'<tr class="tot"><td class="o"><div class="on"><div class="t">TOTAL</div></div></td>'
-                  f'{("<td></td>" if has_setor else "")}<td>{gta}</td><td>{gtb}</td><td>{gta+gtb}</td><td></td></tr>')
+                  f'{("<td></td>" if has_setor else "")}<td>{gta}</td><td>{gtb}</td></tr>')
         qg_html = (f'<div class="h2" style="margin-top:16px">Quantidade geral de atendimentos</div>'
                    f'<table><thead><tr><th>Atendente</th>{setor_h}<th>{la}</th><th>{lb}</th>'
-                   f'<th>Total</th><th style="width:12%">%</th></tr></thead><tbody>{qrows}</tbody></table>')
+                   f'</tr></thead><tbody>{qrows}</tbody></table>')
 
     return f"""<!doctype html><html lang=pt-BR><head><meta charset=utf-8><title>Indicador CRM Embapi — {ref}</title><style>
 :root{{--bg:#FFFFFF;--s:#FFFFFF;--s2:{bp['s2']};--ink:{bp['ink']};--soft:#5A5348;--mut:#948B7D;--ln:{bp['ln']};--lns:{bp['lns']};--ac:{bp['ac']};--in:{bp['dark']};--gd:#5E8E1E;--bd:#C0392B;--aw:{bp['aw']}}}
