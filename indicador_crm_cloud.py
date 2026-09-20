@@ -347,24 +347,7 @@ def build_html(d, a, brand="embapi"):
         comp_html = (f'<div class="h2" style="margin-top:16px">Comparativo com o mês anterior</div>'
                      f'<table><thead><tr><th>Etapa</th><th>{la}</th><th>{lb}</th>'
                      f'</tr></thead><tbody>{crows}</tbody></table>')
-    qg_html = ""
-    qg = d.get("quantidade_geral")
-    if qg:
-        la, lb = qg.get("ant_label", "Mês ant."), qg.get("atual_label", "Mês atual")
-        linhas = qg.get("linhas", [])
-        has_setor = any(l.get("setor") for l in linhas)
-        gta = sum(l["ant"] for l in linhas); gtb = sum(l["atual"] for l in linhas)
-        qrows = ""
-        for l in linhas:
-            setor = (f'<td class="o">{l.get("setor","")}</td>' if has_setor else "")
-            qrows += (f'<tr><td class="o"><div class="on"><div class="t">{l["atendente"]}</div></div></td>{setor}'
-                      f'<td>{l["ant"]}</td><td>{l["atual"]}</td></tr>')
-        setor_h = "<th>Setor</th>" if has_setor else ""
-        qrows += (f'<tr class="tot"><td class="o"><div class="on"><div class="t">TOTAL</div></div></td>'
-                  f'{("<td></td>" if has_setor else "")}<td>{gta}</td><td>{gtb}</td></tr>')
-        qg_html = (f'<div class="h2" style="margin-top:16px">Quantidade geral de atendimentos</div>'
-                   f'<table><thead><tr><th>Atendente</th>{setor_h}<th>{la}</th><th>{lb}</th>'
-                   f'</tr></thead><tbody>{qrows}</tbody></table>')
+    qg_html = ""  # tabela "Quantidade geral de atendimentos" removida (redundante com "por vendedor")
 
     return f"""<!doctype html><html lang=pt-BR><head><meta charset=utf-8><title>Indicador CRM Embapi — {ref}</title><style>
 :root{{--bg:#FFFFFF;--s:#FFFFFF;--s2:{bp['s2']};--ink:{bp['ink']};--soft:#5A5348;--mut:#948B7D;--ln:{bp['ln']};--lns:{bp['lns']};--ac:{bp['ac']};--in:{bp['dark']};--gd:#5E8E1E;--bd:#C0392B;--aw:{bp['aw']}}}
@@ -411,7 +394,6 @@ tr.tot td{{font-weight:700;background:var(--s2)}}tr.st td{{color:var(--mut)}}
 <table><thead><tr><th>Origem</th><th>Criados</th><th>Final.</th><th>Aceitos*</th><th style="width:26%">% do total</th></tr></thead><tbody>{rows}</tbody></table>
 <p class="nt">{d.get("origem_nota","* Aceitos por origem é aproximado (cards que entraram em Pedido Efetivado). Criados e Finalizados por origem vêm das tags do atendimento.")}</p>
 {comp_html}
-{qg_html}
 {anames_sec}
 </div></body></html>"""
 
