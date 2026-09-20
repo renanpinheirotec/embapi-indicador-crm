@@ -200,6 +200,20 @@ def collect(a, b):
 
     users = get_users()
 
+    # nomes dos aceitos (cliente + vendedor) para o bloco "Aceitos — o que foi fechado"
+    def _cli_nome(c):
+        cl = c.get("client") or c.get("cliente") or {}
+        nm = (cl.get("name") if isinstance(cl, dict) else None) or c.get("clientName")
+        if not nm:
+            t = (c.get("title") or "—").strip()
+            parts = t.split(" - ")
+            if parts and parts[0].strip().lstrip("#").isdigit():
+                parts = parts[1:]
+            nm = " - ".join(parts).strip() or t
+        return nm
+    aceitos_nomes = [{"nome": _cli_nome(c),
+                      "vendedor": (users.get(c.get("ownerId")) or "Sem responsável")} for c in aceitos]
+
     def by_owner(cs):
         o = defaultdict(int)
         for c in cs:
@@ -250,7 +264,7 @@ def collect(a, b):
 
     return {"kpis": k, "criados": split(created), "finalizados": split(closed),
             "aceitos": split(aceitos), "perdidos_motivo": perdidos_motivo,
-            "por_vendedor": por_vendedor,
+            "por_vendedor": por_vendedor, "aceitos_nomes": aceitos_nomes,
             "pipeline": pipeline, "comparativo": comparativo, "quantidade_geral": quantidade_geral}
 
 
